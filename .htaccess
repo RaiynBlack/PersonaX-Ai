@@ -1,0 +1,65 @@
+Options -Indexes -ExecCGI
+ServerSignature Off
+
+# ── Security headers ──────────────────────────────────────
+<IfModule mod_headers.c>
+  Header always set X-Content-Type-Options  "nosniff"
+  Header always set X-Frame-Options         "DENY"
+  Header always set X-XSS-Protection        "1; mode=block"
+  Header always set Referrer-Policy         "strict-origin-when-cross-origin"
+  Header always set Permissions-Policy      "geolocation=(), microphone=(self), camera=()"
+  Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' cdn.jsdelivr.net; font-src 'self' cdn.jsdelivr.net; connect-src 'self' api.anthropic.com; img-src 'self' data:;"
+</IfModule>
+
+# ── Block sensitive directories ───────────────────────────
+<FilesMatch "^(config|includes|python|sql|cron|logs)">
+  Order Allow,Deny
+  Deny from all
+</FilesMatch>
+
+# ── Block dotfiles ────────────────────────────────────────
+<FilesMatch "^\.">
+  Order Allow,Deny
+  Deny from all
+</FilesMatch>
+
+# ── Block direct PHP access to includes ───────────────────
+<FilesMatch "\.(php)$">
+  <If "%{REQUEST_URI} =~ m#/(includes|config|cron)/#">
+    Order Allow,Deny
+    Deny from all
+  </If>
+</FilesMatch>
+
+# ── Enable rewrite ────────────────────────────────────────
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+
+  # Redirect to HTTPS
+  # RewriteCond %{HTTPS} off
+  # RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+  # Route API requests
+  RewriteRule ^api/(.*)$ api/index.php?action=$1 [QSA,L]
+</IfModule>
+
+# ── Cache static assets ───────────────────────────────────
+<IfModule mod_expires.c>
+  ExpiresActive On
+  ExpiresByType image/png       "access plus 1 month"
+  ExpiresByType image/jpeg      "access plus 1 month"
+  ExpiresByType text/css        "access plus 1 week"
+  ExpiresByType application/javascript "access plus 1 week"
+</IfModule>
+
+# ── PHP hardening ─────────────────────────────────────────
+<IfModule mod_php.c>
+  php_flag  display_errors       Off
+  php_flag  log_errors           On
+  php_value error_log            logs/php_errors.log
+  php_flag  expose_php           Off
+  php_value session.cookie_httponly 1
+  php_value session.cookie_samesite Lax
+  php_flag  session.use_strict_mode 1
+</IfModule>
